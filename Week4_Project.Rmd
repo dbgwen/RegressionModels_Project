@@ -1,0 +1,127 @@
+---
+title: "RegressionModel_Week4_Project"
+author: "Deborah Passey"
+date: "7/12/2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+EXECUTIVE SUMMARY 
+
+> ##### This analysis uses the 1974 Motor Trend data to answer the following: Is an automatic or manual transmission better for miles per gallon (MPG)? What is the difference between automatic and manual transmissions? Information about the data can be found in Appendix 1.1. The analysis indicates that when adjusting for differences in other variables, the automatic and manual transmissions had similar miles per gallon. Comparing the automatic to manual transmission they appear to have several notable differences. For example, the manual transmission has higher miles per gallon (17.1 vs 24.3), higher displacement (290 vs 143 cu.in.), and horsepower (160 vs 126). This analysis has limitations. The data set included only a small sample size (32 observations). This limits the ability to generalize beyond this analysis. 
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(gridExtra)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+data(mtcars)
+
+```
+
+Research Question 1: Is an automatic or manual transmission better for miles per gallon (MPG)?  
+
+```{r, q1 descriptives, include=FALSE}
+means <- mtcars %>% group_by(am) %>% 
+  summarise_each(funs(mean))
+
+mtcars$am <- factor(mtcars$am,levels=c(0,1),
+   labels=c("Automatic","Manual")) 
+mtcars$cyl <- factor(mtcars$cyl,levels=c(4,6,8),
+   labels=c("4cyl","6cyl","8cyl"))
+
+mtcars$mpg_z <- round((mtcars$mpg - mean(mtcars$mpg))/sd(mtcars$mpg), 2)
+mtcars$mpg_type <- ifelse(mtcars$mpg_z < 0, "below", "above")
+mtcars <- mtcars[order(mtcars$mpg_z), ]
+mtcars$`car name`
+```
+
+> ##### The dependent variable, miles per gallon, is a continuous variable, so we will use a linear regression model. The independent variable transmission is binary. It appears that some variables might be confounders and should be adjusted for in the linear rgression model. There are two models considered in this analysis:  
+#####  Model 1: indicates that the manual transmission has a significantly higher mile per gallon compared to the automatic tranmission (7.245 mpg higher; p=0.0002).  
+#####  Model 2: indicates that after adjusting for number of cylinders, weight, and horsepower, there is no significant difference between the manual and automatic transmission in miles per gallon.   
+
+```{r models, message = FALSE, echo=FALSE}
+model1 <- lm(mpg ~ am, data=mtcars)
+model2 <- lm(mpg ~ am + cyl + wt + hp, data=mtcars)
+tab_model(model1, model2)
+
+```  
+
+> ##### To compare Model 1 and Model 2, an Analysis of Variance (ANOVA) was used. The ANOVA can be found in Appendix 1.2. The p-value for the ANOVA tests whether the adjustment variables are necessary. The ANOVA indicates that Model 2 with the adjustment variables is necessary over Model 1. From these results, the adjustment variables are necessary, and adjusting for these variables indicate that there is not a significant difference in miles per gallon when comparing the automatic and manual transmissions.  The residual plots of Models 1 and 2 can be found in Appendix 1.2.     
+
+
+Research Question 2: What is the difference between automatic and manual transmissions?   
+
+> ##### To quantify the differences between the automatic and manual transmission, descriptives methods and graphgs are used. The table provides the mean for each variable by transmission type. Graph A shows the difference in the number of cylinders by transmission type. Graph B shows the above and below average miles per gallon for each type of transmission. Graph C is a regression plot of miles per gallon on weight, by transmission type. Graph C shows the distribution of weight by transmission type. A full descriptive analysis can be found in Appendix 1.3.   
+
+
+```{r, q2 models, echo = FALSE, fig.height=10, fig.width=10}
+kable(means, caption="1974 Motor Trend, averages by Transmission, 0=automatic, 1=manual") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left")  
+
+library(ggplot2)
+theme_set(theme_classic())
+
+g1 <- ggplot(mtcars, aes(am)) + geom_bar(aes(fill=cyl), width = 0.5) + 
+  theme(axis.text.x = element_text(angle=65, vjust=0.6)) + 
+  labs(title="Histogram of Cylinders (count) by Transmission Type", x="Transmission Type")
+
+g2 <- ggplot(mtcars, aes(x=am, y=mpg_z, label=mpg_z)) + labs(x = "Transmission", y="Centered Average") +
+  geom_bar(stat='identity', aes(fill=mpg_type), width=.5)  +
+  scale_fill_manual(name="Mileage", 
+                    labels = c("Above Average", "Below Average"), 
+                    values = c("above"="#00ba38", "below"="#f8766d")) + 
+  labs(subtitle="Normalized mileage from 'mtcars'", 
+       title= "Diverging Bars") + 
+  coord_flip()
+
+g3 <- ggplot(mtcars, aes(wt, mpg, color = am)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y~x) +
+  labs(title = "Regression of MPG on Weight by Transmission Type", x = "Weight", y = "Miles per Gallon")
+
+g4 <- qplot(hp, data=mtcars, geom="density", fill=am, alpha=I(.5),
+   main="Distribution of Horsepower", ylab="Density")
+
+print(ggarrange(g1, g2, g3, g4 + rremove("x.text"), 
+          labels = c("A", "B", "C", "D"),
+          ncol = 2, nrow = 2))
+
+```  
+
+  
+
+APPENDIX 
+
+Appendix 1.1  
+    
+> ##### The data comes from Henderson and Velleman (1981), which extracted data from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models). The variables in this data set include: Miles per gallon (mpg), Number of cylinders (cyl), Displacement cubic inch (disp), Gross horsepower (hp), Rear axle ratio (drat), Weight in 1000 lbs (wt), 1/4 mile time (qsec), Engine (vs; 0 = V-shaped, 1 = straight), Transmission (am; 0 = automatic, 1 = manual), Number of forward gears (gear), and Number of carburetors (carb). Data source: Henderson and Velleman (1981), Building multiple regression models interactively. Biometrics, 37, 391–411.
+    
+Appendix 1.2: ANOVA and Residual Plots for Question 1 
+
+```{r, residual plots, fig.height=4, fig.width=4}
+anova(model1, model2)
+plot(model1)
+plot(model2)
+
+```  
+
+Appendix 1.3: Descriptive data for the data set  
+    
+```{r, descriptives}
+
+kable(mtcars, caption="1974 Motor Trend Car Data") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+
+
+
+
+
+
